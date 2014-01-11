@@ -13,12 +13,13 @@ tornado.options.options.logging = "debug"
 tornado.log.enable_pretty_logging()
 
 from nltk_classifier import Recipe_NLTK_Classifier
+from pattern_classifier import Recipe_Pattern_Classifier
 
 API = "http://localhost:3000/api/recipes/" # <--- Adam API
 
 def load_data():
     data = []
-    for n in range(50,250): # <----------- choose how much data you want to load
+    for n in range(50,100): # <----------- choose how much data you want to load
         try:
             # Use Adam's nytcooking API, and keep only:
             #    name:        string
@@ -46,13 +47,13 @@ def load_data():
 
 def main():
     d = load_data()
-    # Hackety-split our data 70% 30%, and use latter as test set
-    split_ind = int(len(d) * 0.7)
+    # Hackety-split our data 80% 20%, and use latter as test set
+    split_ind = int(len(d) * 0.8)
     logging.info("split_index = "+str(split_ind))
     train_set, test_set = d[:split_ind], d[split_ind:]
 
     # Train on training set
-    classifier = Recipe_NLTK_Classifier()
+    classifier = Recipe_Pattern_Classifier()
     classifier.train(train_set)
 
     # Report accuracy on test set

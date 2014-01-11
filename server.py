@@ -13,13 +13,14 @@ import tornado.options
 from tornado.options import options
 
 from nltk_classifier import Recipe_NLTK_Classifier
+from pattern_classifier import Recipe_Pattern_Classifier
 from scrape import scrape
 
 tornado.options.define("port", default=8888, help="port", type=int)
 
 def load_classifier():
     global classifier
-    classifier = Recipe_NLTK_Classifier()
+    classifier = Recipe_Pattern_Classifier()
     classifier.load_from_file()
 
 class MainHandler(tornado.web.RequestHandler):

@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-# kudos to http://datadesk.latimes.com/posts/2013/12/natural-language-processing-in-the-kitchen/
-# agnes made this.
+# agnes is responsible.
 
 import os
 import glob
 import pickle
 from datetime import datetime
 
-import nltk
-from nltk.classify import MaxentClassifier
-from nltk.tag.simplify import simplify_wsj_tag
+import pattern.vector # import KNN, count
+import pattern.en
+import collections
 
 import logging
 ## tornado pretty logging for non-tornado scripts
@@ -19,8 +18,8 @@ tornado.options.options.logging = "debug"
 tornado.log.enable_pretty_logging()
 
 """
-Elementary recipe NLP classifier powered by NLTK.
-http://nltk.org/
+Elementary recipe NLP classifier powered by pattern.
+http://www.clips.ua.ac.be/pattern
 
 Expects data to be labeled in format:
    { label <string> : text <string> }
@@ -36,10 +35,10 @@ Example recipe data format:
        "preparation": []string
    }
 """
-class Recipe_NLTK_Classifier(object):
+class Recipe_Pattern_Classifier(object):
 
     FILENAME = {
-        "PREFIX": "dump_nltk_classifier-",
+        "PREFIX": "dump_pattern_classifier-",
         "TSTAMP": "%Y%m%d-%H%M",
         "SUFFIX": ".pickle"
         }
@@ -60,30 +59,36 @@ class Recipe_NLTK_Classifier(object):
 
     def __get_features(self, text):
         """
-        Given a string, tokenize, tag, and return a normalized set of features.
+        Given a string, tokenize, tag, and return tag counts.
 
-        Returns { feature: <True>, ... }
+        Returns { feature: <int>, ... }
         """
-        words = []
-        sentences = nltk.sent_tokenize(text)
-        for sentence in sentences:
-            words = words + nltk.word_tokenize(sentence)
-            pos = nltk.pos_tag(words)
-            # TODO verify simplify_wsj_tag increases accuracy
-            pos = [simplify_wsj_tag(tag) for word, tag in pos]
-            words = [i.lower() for i in words]
-            trigrams = nltk.trigrams(words)
-            trigrams = ["%s/%s/%s" % (i[0], i[1], i[2]) for i in trigrams]
-            features = words + pos + trigrams
-            features = dict([(i, True) for i in features])
-            return features
+        features = {}
+        # -- POS tags
+        pos_tags = [x[1] for x in pattern.en.tag(text)]
+        tags_count = collections.Counter(pos_tags)
+        # rename "." tag to "PERIOD" so avoid confusion in dot syntax keys
+        features.update({"POS_"+tag:val for tag,val in tags_count.items()})
+        # -- chunk tags
+        sentences = pattern.en.parsetree(text)
+        def get_chunk_tags(sentence):
+            return [chunk.tag for chunk in sentence.chunks]
+        chunks = [chunk for s in sentences for chunk in get_chunk_tags(s)]
+        tags_count = collections.Counter(chunks)
+        features.update({tag:val for tag,val in tags_count.items()})
+        # TODO make ingredient custom tags here with nltk,
+        # make sure ingredients account for in tags too
+        # TODO could also try # sent., # words, mean words per sent., but
+        # these probably very different for nytimes v. (e.g.) Betty Crocker
+        # return all features
+        return features
 
     def __tag_record(self, k, v):
         """
         If given a string, returns tagged tuple, else returns None.
         """
         if isinstance(v, unicode) or isinstance(v, str):
-            return (self.__get_features(v), k)
+            return pattern.vector.Document(self.__get_features(v), type=k)
         else:
             return None
 
@@ -106,7 +111,7 @@ class Recipe_NLTK_Classifier(object):
         Given a labeled set, train our classifier.
         """
         t = self.__tag_data_set(d)
-        self.classifier = MaxentClassifier.train(t)
+        self.classifier = pattern.vector.NB(train=t)
         logging.info("Training on %s records complete." % len(d))
 
     def accuracy(self, d):
@@ -116,7 +121,8 @@ class Recipe_NLTK_Classifier(object):
         Returns float.
         """
         t = self.__tag_data_set(d)
-        return nltk.classify.accuracy(self.classifier, t)
+        # Classifier.test() returns an (accuracy, precision, recall, F1-score)-tuple.
+        return self.classifier.test(t)[0]
 
     def classify(self, s):
         """
@@ -127,11 +133,14 @@ class Recipe_NLTK_Classifier(object):
         """
         t = self.__get_features(s)
         logging.debug(t)
-        p = self.classifier.prob_classify(t)
-        import json
-        logging.debug("%s\n%s\n >>> %s, %s\n" % \
-                     (s,json.dumps(t),p.max(),p.prob(p.max())))
-        return (p.max(), p.prob(p.max()))
+        import json # <<<<<<<<<<<<< DEBUGGGG
+        r = self.classifier.classify(t, discrete=False)
+        logging.debug("%s" % json.dumps(r))
+        # get (key, probably) pair with max probability
+        p = max(r.iterkeys(), key=(lambda k: r[k]))
+        logging.debug("%s\n%s\n >>> %s\n" % \
+            (s,json.dumps(t),json.dumps(p)))
+        return (p, r[p])
 
     def save_to_file(self):
         """
@@ -139,9 +148,7 @@ class Recipe_NLTK_Classifier(object):
         """
         filename = self.FILENAME["PREFIX"] + self.FILENAME["TSTAMP"] + \
             self.FILENAME["SUFFIX"]
-        outfile = open(datetime.now().strftime(filename), 'wb')
-        pickle.dump(self.classifier, outfile)
-        outfile.close()
+        self.classifier.save(datetime.now().strftime(filename))
 
     def load_from_file(self, infile=None):
         """
@@ -149,4 +156,5 @@ class Recipe_NLTK_Classifier(object):
         """
         if not infile:
             infile = self.__get_latest_file()
-        self.classifier = pickle.load(open(infile, "rb"))
+        self.classifier = pattern.vector.NB()
+        self.classifier.load(infile)
