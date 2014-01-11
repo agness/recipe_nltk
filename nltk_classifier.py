@@ -2,15 +2,16 @@
 # kudos to http://datadesk.latimes.com/posts/2013/12/natural-language-processing-in-the-kitchen/
 # agnes made this.
 
-import logging
+import os
 import glob
+import pickle
 from datetime import datetime
 
 import nltk
-import pickle
 from nltk.classify import MaxentClassifier
 from nltk.tag.simplify import simplify_wsj_tag
 
+import logging
 ## tornado pretty logging for non-tornado scripts
 import tornado.options
 import tornado.log
@@ -19,6 +20,7 @@ tornado.log.enable_pretty_logging()
 
 """
 Elementary recipe NLP classifier powered by NLTK.
+http://nltk.org/
 
 Expects data to be labeled in format:
    { label <string> : text <string> }
@@ -147,4 +149,4 @@ class Recipe_NLTK_Classifier(object):
         """
         if not infile:
             infile = self.__get_latest_file()
-        classifier = pickle.load(open(infile, "rb"))
+        self.classifier = pickle.load(open(infile, "rb"))

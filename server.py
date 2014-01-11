@@ -5,12 +5,6 @@ import json
 import requests
 import logging
 
-import nltk
-import pickle
-from nltk.classify import MaxentClassifier
-from nltk.tag.simplify import simplify_wsj_tag
-from bs4 import BeautifulSoup
-
 import os
 import tornado.httpserver
 import tornado.ioloop
@@ -18,81 +12,15 @@ import tornado.web
 import tornado.options
 from tornado.options import options
 
-tornado.options.define("port", default=8888, help="port", type=int)
+from nltk_classifier import Recipe_NLTK_Classifier
+from scrape import scrape
 
-# ------------------------------------------
-# Classifier stuff
+tornado.options.define("port", default=8888, help="port", type=int)
 
 def load_classifier():
     global classifier
-    classifier = pickle.load(open("classifier.pickle", "rb"))
-
-def classify(s):
-    """ this should be imported from a CLASSIFY module """
-    t = get_features(s)
-    #    l = classifier.classify(t)
-    p = classifier.prob_classify(t)
-    return (p.max(), p.prob(p.max()))
-
-def get_features(text):
-    """ this should be a CLASSIFY PRIVATE method """
-    words = []
-    sentences = nltk.sent_tokenize(text)
-    for sentence in sentences:
-        words = words + nltk.word_tokenize(sentence)
-        pos = nltk.pos_tag(words)
-        # TODO verify simplify_wsj_tag increases accuracy
-        pos = [simplify_wsj_tag(tag) for word, tag in pos]
-        words = [i.lower() for i in words]
-        trigrams = nltk.trigrams(words)
-        trigrams = ["%s/%s/%s" % (i[0], i[1], i[2]) for i in trigrams]
-        features = words + pos + trigrams
-        features = dict([(i, True) for i in features])
-        return features
-
-# ------------------------------------------
-# Scrape external web pages
-
-def scrape(url):
-    result = {}
-    try:
-        markup = requests.get(url).text
-        soup = BeautifulSoup(markup)
-        # get meta tags before we strip anything
-        result["source"] = get_meta_tag(soup, ["site_name"])
-        result["title"] = get_meta_tag(soup, ["title"])
-        result["url"] = get_meta_tag(soup, ["url"])
-        result["description"] = get_meta_tag(soup, ["description"])
-        # Strip script tags and comments
-        [s.extract() for s in soup(['script','style','comments','header','footer'])]
-        # Get only text trimmed of whitespace and punctuation
-        result["body"] = list(soup.stripped_strings) # returns generator
-    except Exception as e:
-        raise # debug for now!
-        logging.error("({0}): {1}, {2}".format(type(e), e.args, e))
-    return result
-
-def get_meta_tag(soup, keys):
-    for k in keys:
-        try:
-            t = soup.find("meta", {"property":"og:"+k})
-            return t["content"]
-        except:
-            pass
-        try:
-            t = soup.find("meta", {"property":k})
-            return t["content"]
-        except:
-            pass
-        try:
-            t = soup.find("meta", {"name":k})
-            return t["content"]
-        except:
-            pass
-    return ""
-
-# ------------------------------------------
-# Web server endpoints
+    classifier = Recipe_NLTK_Classifier()
+    classifier.load_from_file()
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -107,7 +35,7 @@ class MainHandler(tornado.web.RequestHandler):
                 line = line.strip()
                 if len(line) > 5:
                     self.write(line+"<br>")
-                    self.write("<i>%s, %s</i><br><br>" % classify(line))
+                    self.write("<i>%s, %s</i><br><br>" % classifier.classify(line))
         elif url:
             page_data = scrape(url)
             self.write("<p><b>source:</b> "+page_data["source"]+"</p>")
@@ -117,7 +45,7 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("<hr>")
             for line in page_data["body"]:
                 if len(line) > 5:
-                    score = classify(line)
+                    score = classifier.classify(line)
                     if score[1] > 0.5:
                         self.write(line+"<br>")
                         self.write("<i>%s, %s</i><br><br>" % score)
