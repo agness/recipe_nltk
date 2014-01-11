@@ -156,5 +156,4 @@ class Recipe_Pattern_Classifier(object):
         """
         if not infile:
             infile = self.__get_latest_file()
-        self.classifier = pattern.vector.NB()
-        self.classifier.load(infile)
+        self.classifier = pattern.vector.NB.load(infile)

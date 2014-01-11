@@ -22,6 +22,7 @@ def load_classifier():
     global classifier
     classifier = Recipe_Pattern_Classifier()
     classifier.load_from_file()
+    logging.debug("Using classifier %s" % type(classifier))
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
