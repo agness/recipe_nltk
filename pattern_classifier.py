@@ -10,6 +10,8 @@ import pattern.vector # import KNN, count
 import pattern.en
 import collections
 
+from ingredients_bag import Ingredients_Bag
+
 import logging
 ## tornado pretty logging for non-tornado scripts
 import tornado.options
@@ -44,7 +46,8 @@ class Recipe_Pattern_Classifier(object):
         }
 
     def __init__(self):
-        # dun have anything to do here yet
+        self.ingredients_bag = Ingredients_Bag()
+        self.ingredients_bag.load_from_file()
         pass
 
     def __get_latest_file(self):
@@ -76,9 +79,11 @@ class Recipe_Pattern_Classifier(object):
         chunks = [chunk for s in sentences for chunk in get_chunk_tags(s)]
         tags_count = collections.Counter(chunks)
         features.update({tag:val for tag,val in tags_count.items()})
-        # TODO make ingredient custom tags here with nltk,
-        # make sure ingredients account for in tags too
-        # TODO could also try # sent., # words, mean words per sent., but
+        # -- our custom ingredients bag
+        igrd_tags = [x[1] for x in self.ingredients_bag.get_matches(text)]
+        tags_count = collections.Counter(igrd_tags)
+        features.update({tag:val for tag,val in tags_count.items()})
+         # TODO could also try # sent., # words, mean words per sent., but
         # these probably very different for nytimes v. (e.g.) Betty Crocker
         # return all features
         return features

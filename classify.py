@@ -19,7 +19,7 @@ API = "http://localhost:3000/api/recipes/" # <--- Adam API
 
 def load_data():
     data = []
-    for n in range(50,100): # <----------- choose how much data you want to load
+    for n in range(50,700): # <----------- choose how much data you want to load
         try:
             # Use Adam's nytcooking API, and keep only:
             #    name:        string

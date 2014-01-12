@@ -46,7 +46,7 @@ class MainHandler(tornado.web.RequestHandler):
             self.write("<p><b>description:</b> "+page_data["description"]+"</p>")
             self.write("<hr>")
             for line in page_data["body"]:
-                if len(line) > 5:
+                if len(line) > 5: # TODO drop any line < 2 words; NER for time
                     score = classifier.classify(line)
                     if score[1] > 0.5:
                         self.write(line+"<br>")
